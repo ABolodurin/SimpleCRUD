@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: V1
+      tag: 1
+      author: ABolodurin
+
+  - include:
+      file: v1.sql
+      relativeToChangelogFile: true

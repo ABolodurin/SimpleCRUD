@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/crud
+    username: postgres
+    password: postgres
+  mvc:
+    pathmatch:
+      matching-strategy: ANT_PATH_MATCHER
+  liquibase:
+    change-log: classpath:liquibase/changelog.yml
+    enabled: true
+    default-schema: public
+
+application:
+  swagger:
+    info:
+      title: Simple CRUD
+      description: Crud task
+      version: 1.0
+      contact:
+        name: Aleksandr Bolodurin
+        email: shur026@yandex.ru
+        url: https://t.me/bandit26
