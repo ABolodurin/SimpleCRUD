@@ -5,15 +5,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import ru.bolodurin.crud.config.TestConfig;
 import ru.bolodurin.crud.model.dto.BusinessObjectDTO;
 
 import java.time.LocalDateTime;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("test")
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        classes = TestConfig.class)
 @Sql(scripts = {"classpath:v1.sql"}, executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 class CrudApplicationTests {
     @Autowired
@@ -44,11 +45,11 @@ class CrudApplicationTests {
                 .exchange()
                 .expectStatus().isOk();
 
-		webClient.method(HttpMethod.DELETE).uri("/")
-				.contentType(MediaType.APPLICATION_JSON)
-				.bodyValue(objectDTO)
-				.exchange()
-				.expectStatus().isOk();
+        webClient.method(HttpMethod.DELETE).uri("/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(objectDTO)
+                .exchange()
+                .expectStatus().isOk();
     }
 
 }
