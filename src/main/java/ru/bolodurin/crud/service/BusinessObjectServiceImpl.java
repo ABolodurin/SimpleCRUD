@@ -4,31 +4,37 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.bolodurin.crud.model.dto.BusinessObjectDTO;
-import ru.bolodurin.crud.model.mapper.BusinessObjectDTORowMapper;
+import ru.bolodurin.crud.model.entity.BusinessObject;
+import ru.bolodurin.crud.model.mapper.BusinessObjectDTOMapper;
+import ru.bolodurin.crud.repository.BusinessObjectRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class BusinessObjectServiceImpl implements BusinessObjectService {
-    private final JdbcTemplate jdbcTemplate;
-    private final BusinessObjectDTORowMapper mapper;
+    private final BusinessObjectRepository objectRepository;
+    private final BusinessObjectDTOMapper mapper;
 
     @Override
+    @Transactional
     @CachePut(value = "objects", key = "#objectDTO.name()")
     public List<BusinessObjectDTO> add(BusinessObjectDTO objectDTO) {
-        String sql = """
-                INSERT INTO business_objects
-                (name, timestamp, non_business) VALUES (?,?,?);
-                """;
-
         int nonBusiness = (int) (Math.random() * 255);
-        jdbcTemplate.update(sql, objectDTO.name(), LocalDateTime.now(), nonBusiness);
+
+        BusinessObject object = BusinessObject
+                .builder()
+                .name(objectDTO.name())
+                .timestamp(LocalDateTime.now())
+                .nonBusinessField(nonBusiness)
+                .build();
+
+        objectRepository.save(object);
 
         return show();
     }
@@ -37,36 +43,33 @@ public class BusinessObjectServiceImpl implements BusinessObjectService {
     @Cacheable("objects")
     public List<BusinessObjectDTO> show() {
         System.out.println("Log: LOADING FROM DB..."); //log imitation for cached loading check
-        String sql = "SELECT * FROM business_objects;";
 
-        return jdbcTemplate.query(sql, mapper);
+        return objectRepository
+                .findAll().stream()
+                .map(mapper)
+                .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     @CachePut(value = "objects", key = "#objectDTO.name()")
     public List<BusinessObjectDTO> update(BusinessObjectDTO objectDTO) {
-        String sql = """
-                UPDATE business_objects SET
-                name = ?,
-                timestamp = ?
-                WHERE id = ?;
-                """;
+        BusinessObject object = objectRepository
+                .findById(objectDTO.id())
+                .orElseThrow(() -> new RuntimeException("Object not found. ID: " + objectDTO.id()));
 
-        jdbcTemplate.update(sql, objectDTO.name(), LocalDateTime.now(), objectDTO.id());
+        object.setName(objectDTO.name());
+        object.setTimestamp(LocalDateTime.now());
+        objectRepository.save(object);
 
         return show();
     }
 
     @Override
+    @Transactional
     @CacheEvict(value = "objects", key = "#objectDTO.name()")
     public List<BusinessObjectDTO> delete(BusinessObjectDTO objectDTO) {
-        String sql = """
-                DELETE FROM business_objects
-                WHERE id = ?;
-                """;
-
-        jdbcTemplate.update(sql, objectDTO.id());
+        objectRepository.deleteById(objectDTO.id());
 
         return show();
     }

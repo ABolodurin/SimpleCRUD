@@ -1,98 +1,94 @@
 package ru.bolodurin.crud.service;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.jdbc.Sql;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import ru.bolodurin.crud.model.dto.BusinessObjectDTO;
-import ru.bolodurin.crud.model.mapper.BusinessObjectDTORowMapper;
+import ru.bolodurin.crud.model.entity.BusinessObject;
+import ru.bolodurin.crud.model.mapper.BusinessObjectDTOMapper;
+import ru.bolodurin.crud.repository.BusinessObjectRepository;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@JdbcTest
-@Sql(scripts = {"classpath:v1.sql"})
+@ExtendWith(MockitoExtension.class)
 class BusinessObjectServiceImplTest {
-    @Autowired
-    JdbcTemplate jdbcTemplate;
     BusinessObjectService service;
-    BusinessObjectDTORowMapper mapper;
+    @Mock
+    BusinessObjectRepository objectRepository;
+    BusinessObjectDTOMapper mapper;
 
     @BeforeEach
     void init() {
-        this.mapper = new BusinessObjectDTORowMapper();
-        this.service = new BusinessObjectServiceImpl(jdbcTemplate, mapper);
-    }
-
-    @AfterEach
-    void clearData() {
-        jdbcTemplate.execute("TRUNCATE TABLE business_objects;");
+        this.mapper = new BusinessObjectDTOMapper();
+        this.service = new BusinessObjectServiceImpl(objectRepository, mapper);
     }
 
     @Test
     void shouldAddObject() {
         String expectedName = new Object().toString();
         BusinessObjectDTO obj = new BusinessObjectDTO(1L, expectedName, LocalDateTime.now());
+        ArgumentCaptor<BusinessObject> objectArgumentCaptor = ArgumentCaptor.forClass(BusinessObject.class);
 
         service.add(obj);
 
-        String sql = """
-                SELECT * FROM business_objects
-                WHERE name=?;
-                """;
+        verify(objectRepository).save(objectArgumentCaptor.capture());
 
-        BusinessObjectDTO actual = jdbcTemplate.queryForObject(sql, mapper, expectedName);
+        BusinessObject object = objectArgumentCaptor.getValue();
 
-        assert actual != null;
-        assertEquals(expectedName, actual.name());
+        assertEquals(expectedName, object.getName());
+
     }
 
     @Test
     void shouldShowObjects() {
-        String expectedName1 = new Object().toString();
-        String expectedName2 = new Object().toString();
-        List<BusinessObjectDTO> list = List.of(
-                new BusinessObjectDTO(1L, expectedName1, LocalDateTime.now()),
-                new BusinessObjectDTO(1L, expectedName2, LocalDateTime.now()));
-
-        list.forEach(obj -> service.add(obj));
-
-        List<BusinessObjectDTO> actual = service.show();
-
-        assertEquals(expectedName1, actual.get(0).name());
-        assertEquals(expectedName2, actual.get(1).name());
+        service.show();
+        verify(objectRepository).findAll();
     }
 
     @Test
     void shouldUpdateObjects() {
         String name = new Object().toString();
-        service.add(new BusinessObjectDTO(1L, name, LocalDateTime.now()));
-        BusinessObjectDTO obj = service.show().get(0);
+        long existingId = (long) (Math.random() * 1000);
+        int nonBusiness = (int) existingId;
+        long nonExistingId = existingId + 1L;
+        BusinessObject expected = new BusinessObject(existingId, name, LocalDateTime.now(), nonBusiness);
+        BusinessObjectDTO expectedDTO = mapper.apply(expected);
 
-        String expectedName = new Object().toString();
-        service.update(new BusinessObjectDTO(obj.id(), expectedName, LocalDateTime.now()));
+        when(objectRepository.findById(existingId)).thenReturn(
+                Optional.of(expected));
+        when(objectRepository.findById(nonExistingId)).thenReturn(Optional.empty());
 
-        BusinessObjectDTO actual = service.show().get(0);
+        assertThatThrownBy(() ->
+                service.update(new BusinessObjectDTO(nonExistingId, "name", LocalDateTime.now())))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining(String.valueOf(nonExistingId));
 
-        assert actual != null;
-        assertEquals(expectedName, actual.name());
+        ArgumentCaptor<BusinessObject> objectArgumentCaptor = ArgumentCaptor.forClass(BusinessObject.class);
+
+        service.update(expectedDTO);
+
+        verify(objectRepository).save(objectArgumentCaptor.capture());
+
+        BusinessObject actual = objectArgumentCaptor.getValue();
+
+        assertThat(actual).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldDeleteObjects() {
-        String name = new Object().toString();
-        service.add(new BusinessObjectDTO(1L, name, LocalDateTime.now()));
-        BusinessObjectDTO obj = service.show().get(0);
-
-        service.delete(obj);
-
-        List<BusinessObjectDTO> actual = service.show();
-        assertEquals(0, actual.size());
+        long expected = (long) (Math.random() * 1000);
+        service.delete(new BusinessObjectDTO(expected, "name", LocalDateTime.now()));
+        verify(objectRepository).deleteById(expected);
     }
 
 }
