@@ -1,37 +1,40 @@
 package ru.bolodurin.crud.service;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.boot.test.autoconfigure.orm.jpa.AutoConfigureTestEntityManager;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.jdbc.Sql;
 import ru.bolodurin.crud.model.dto.BusinessObjectDTO;
-import ru.bolodurin.crud.model.mapper.BusinessObjectDTORowMapper;
+import ru.bolodurin.crud.model.entity.BusinessObject;
+import ru.bolodurin.crud.model.mapper.BusinessObjectDTOMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@JdbcTest
 @Sql(scripts = {"classpath:v1.sql"})
+@DataJpaTest
+@AutoConfigureTestEntityManager
 class BusinessObjectServiceImplTest {
     @Autowired
-    JdbcTemplate jdbcTemplate;
+    EntityManager entityManager;
+    BusinessObjectDTOMapper mapper;
     BusinessObjectService service;
-    BusinessObjectDTORowMapper mapper;
 
     @BeforeEach
     void init() {
-        this.mapper = new BusinessObjectDTORowMapper();
-        this.service = new BusinessObjectServiceImpl(jdbcTemplate, mapper);
+        this.mapper = new BusinessObjectDTOMapper();
+        this.service = new BusinessObjectServiceImpl(entityManager, mapper);
     }
 
     @AfterEach
     void clearData() {
-        jdbcTemplate.execute("TRUNCATE TABLE business_objects;");
+        entityManager.createNativeQuery("TRUNCATE TABLE business_objects;");
     }
 
     @Test
@@ -41,12 +44,14 @@ class BusinessObjectServiceImplTest {
 
         service.add(obj);
 
-        String sql = """
-                SELECT * FROM business_objects
-                WHERE name=?;
-                """;
+        String sql = "from BusinessObject o where o.name = :name";
 
-        BusinessObjectDTO actual = jdbcTemplate.queryForObject(sql, mapper, expectedName);
+        BusinessObject object = (BusinessObject) entityManager
+                .createQuery(sql)
+                .setParameter("name", obj.name())
+                .getSingleResult();
+
+        BusinessObjectDTO actual = mapper.apply(object);
 
         assert actual != null;
         assertEquals(expectedName, actual.name());
